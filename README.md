@@ -32,7 +32,7 @@ Detailed installation guide you can read on our documentation site: available on
 1) Install [Git](https://git-scm.com/download/win) for cloning project
 2) Clone this repository: enter these commands to Git console
 ```
-git clone --recursive https://github.com/SNMetamorph/PrimeXT.git
+git clone --recursive https://github.com/hammermaps/PrimeXT.git
 cd PrimeXT
 ```
 Next steps will be vary according to your development environment and tools.
