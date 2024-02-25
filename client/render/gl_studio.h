@@ -232,8 +232,6 @@ private:
 
 	void DrawMeshFromBuffer( const vbomesh_t *mesh );
 
-	void DeleteVBOMesh( vbomesh_t *mesh );
-
 	// Process studio client events
 	void StudioClientEvents( void );
 
@@ -594,6 +592,8 @@ public:
 
 	int	StudioGetBounds( cl_entity_t *e, Vector bounds[2] );
 	int	StudioGetBounds( CSolidEntry *entry, Vector bounds[2] );
+	int	StudioGetBounds( CSolidEntry *entry, CBoundingBox &bounds );
+	CBoundingBox StudioGetMeshBounds( ModelInstance_t *inst, const vbomesh_t *mesh );
 	bool	StudioLoadTBN( void );
 	bool	StudioSaveTBN( void );
 

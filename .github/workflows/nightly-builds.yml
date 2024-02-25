@@ -24,6 +24,10 @@ jobs:
             cmake_preset: windows-x64-debug
             build_conf: Debug
             devenv_arch: amd64
+          - os: windows-latest
+            cmake_preset: windows-x64-release
+            build_conf: RelWithDebInfo
+            devenv_arch: amd64
           - os: ubuntu-22.04
             cmake_preset: linux-x64-debug
             build_conf: Debug
@@ -106,11 +110,12 @@ jobs:
       - name: Build
         working-directory: ${{ github.workspace }}/build
         # Execute the build. You can specify a specific target with "--target <NAME>"
-        run: cmake --build . --config ${{ matrix.build_conf }} --parallel 8
+        run: cmake --build . --parallel 4
 
       - name: Prepare artifacts
         shell: bash
         run: |
+          ls -l build/
           mkdir artifacts/
           mkdir -p publish/primext/bin
           mkdir -p publish/primext/devkit

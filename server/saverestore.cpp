@@ -922,7 +922,7 @@ int CRestore::ReadField( const void *pBaseData, DATAMAP *pMap, TYPEDESCRIPTION *
 						break;
 					case FIELD_EHANDLE:
 						// Input and Output sizes are different!
-						pOutputData = (char *)pOutputData + j*(sizeof(EHANDLE) - gSizes[pTest->fieldType]);
+						pInputData = (char*)pData + j * gSizes[pTest->fieldType];
 						entityIndex = *( int *)pInputData;
 						pent = EntityFromIndex( entityIndex );
 						if ( pent )
@@ -987,7 +987,9 @@ int CRestore::ReadFields( const char *pname, const void *pBaseData, DATAMAP *pMa
 	HEADER	header;
 
 	// First entry should be an int
-	ASSERT(ReadShort() == sizeof(int));
+	// read it to existing variable to avoid variable optimizing out by compiler
+	fileCount = ReadShort(); 
+	ASSERT(fileCount == sizeof(int));
 
 	// Check the struct name
 	if (ReadShort() != TokenHash(pname))			// Field Set marker

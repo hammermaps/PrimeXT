@@ -227,14 +227,14 @@ void CFrustum :: ComputeFrustumBounds( Vector &mins, Vector &maxs )
 
 void CFrustum :: DrawFrustumDebug( void )
 {
-	Vector	bbox[8];
-
+	Vector bbox[8];
 	ComputeFrustumCorners( bbox );
 
 	// g-cont. frustum must be yellow :-)
 	pglColor4f( 1.0f, 1.0f, 0.0f, 1.0f );
 	GL_Bind( GL_TEXTURE0, tr.whiteTexture );
 	pglTexEnvf( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
+	pglShadeModel( GL_SMOOTH );
 	pglBegin( GL_LINES );
 
 	for( int i = 0; i < 2; i += 1 )
@@ -253,10 +253,44 @@ void CFrustum :: DrawFrustumDebug( void )
 		pglVertex3fv( bbox[i*2+5] );
 	}
 
+	// visualize plane normals 	
+	for (int i = 0; i < FRUSTUM_PLANES; i++)
+	{
+		Vector plane_midpoint;
+		switch (i)
+		{
+			case FRUSTUM_LEFT:
+				plane_midpoint = (bbox[0] + bbox[2] + bbox[4] + bbox[6]) * 0.25f;
+				break;
+			case FRUSTUM_RIGHT:
+				plane_midpoint = (bbox[1] + bbox[3] + bbox[5] + bbox[7]) * 0.25f;
+				break;
+			case FRUSTUM_BOTTOM:
+				plane_midpoint = (bbox[2] + bbox[3] + bbox[6] + bbox[7]) * 0.25f;
+				break;
+			case FRUSTUM_TOP:
+				plane_midpoint = (bbox[0] + bbox[1] + bbox[4] + bbox[5]) * 0.25f;
+				break;
+			case FRUSTUM_FAR:
+				plane_midpoint = (bbox[0] + bbox[1] + bbox[2] + bbox[3]) * 0.25f;
+				break;
+			case FRUSTUM_NEAR:
+				plane_midpoint = (bbox[4] + bbox[5] + bbox[6] + bbox[7]) * 0.25f;
+				break;
+		}
+
+		pglColor4f(0.0f, 1.0f, 0.0f, 1.0f);
+		pglVertex3fv(plane_midpoint);
+		pglColor4f(1.0f, 0.0f, 0.0f, 1.0f);
+		pglVertex3fv(plane_midpoint + GetPlane(i)->normal * 32.0);
+	}
+
 	pglEnd();
+	pglColor4f( 1.0f, 1.0f, 1.0f, 1.0f );
 }
 
-bool CFrustum :: CullBox( const Vector &mins, const Vector &maxs, int userClipFlags )
+// faster implementation, but may fail in case when frustum smaller than bounds
+bool CFrustum :: CullBoxFast( const Vector &mins, const Vector &maxs, int userClipFlags )
 {
 	int iClipFlags;
 
@@ -313,6 +347,40 @@ bool CFrustum :: CullBox( const Vector &mins, const Vector &maxs, int userClipFl
 		}
 	}
 
+	return false;
+}
+
+bool CFrustum::CullBoxSafe( const CBoundingBox &bounds )
+{
+	// https://iquilezles.org/articles/frustumcorrect/
+	if (CVAR_TO_BOOL(r_nocull))
+		return false;
+
+	const vec3_t &mins = bounds.GetMins();
+	const vec3_t &maxs = bounds.GetMaxs();
+
+	for (int32_t i = 0; i < FRUSTUM_PLANES; i++)
+	{
+		if (!FBitSet(clipFlags, BIT(i))) {
+			continue;
+		}
+
+		// assumed that plane normal vectors directed inside frustum
+		int32_t out = 0;
+		const mplane_t *plane = &planes[i];
+        out += (DotProduct(plane->normal, Vector(mins.x, mins.y, mins.z) - plane->dist) < 0.0) ? 1 : 0;
+		out += (DotProduct(plane->normal, Vector(maxs.x, mins.y, mins.z) - plane->dist) < 0.0) ? 1 : 0;
+		out += (DotProduct(plane->normal, Vector(mins.x, maxs.y, mins.z) - plane->dist) < 0.0) ? 1 : 0;
+		out += (DotProduct(plane->normal, Vector(maxs.x, maxs.y, mins.z) - plane->dist) < 0.0) ? 1 : 0;
+		out += (DotProduct(plane->normal, Vector(mins.x, mins.y, maxs.z) - plane->dist) < 0.0) ? 1 : 0;
+		out += (DotProduct(plane->normal, Vector(maxs.x, mins.y, maxs.z) - plane->dist) < 0.0) ? 1 : 0;
+		out += (DotProduct(plane->normal, Vector(mins.x, maxs.y, maxs.z) - plane->dist) < 0.0) ? 1 : 0;
+		out += (DotProduct(plane->normal, Vector(maxs.x, maxs.y, maxs.z) - plane->dist) < 0.0) ? 1 : 0;
+
+		if (out == 8) {
+			return true;
+		}
+	}
 	return false;
 }
 

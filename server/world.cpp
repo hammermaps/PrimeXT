@@ -698,9 +698,7 @@ void CWorld :: Precache( void )
 
 	ClientPrecache();
 
-// initialize material system
-	COM_InitMatdef();
-	SV_InitMaterials();
+	COM_PrecacheMaterialsSounds();
 
 // sounds used from C physics code
 	PRECACHE_SOUND("common/null.wav");				// clears sound channels

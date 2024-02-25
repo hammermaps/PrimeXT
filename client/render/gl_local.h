@@ -638,8 +638,8 @@ typedef struct
 	Vector		cached_vieworigin;
 	Vector		cached_viewangles;
 
-	struct mvbocache_s	*vertex_light_cache[MAX_LIGHTCACHE];	// FIXME: make growable
-	struct mvbocache_s	*surface_light_cache[MAX_LIGHTCACHE];
+	struct mstudiocache_t *vertex_light_cache[MAX_LIGHTCACHE];	// FIXME: make growable
+	struct mstudiocache_t *surface_light_cache[MAX_LIGHTCACHE];
 
 	// cull info
 	Vector		modelorg;		// relative to viewpoint
@@ -814,7 +814,7 @@ int R_CullSurface( msurface_t *surf, const Vector &vieworg, CFrustum *frustum, i
 bool R_CullBrushModel( cl_entity_t *e );
 bool R_CullNodeTopView( mnode_t *node );
 
-#define R_CullBox( mins, maxs )		( RI->view.frustum.CullBox( mins, maxs ))
+#define R_CullBox( mins, maxs )		( RI->view.frustum.CullBoxFast( mins, maxs ))
 #define R_CullSphere( centre, radius )		( RI->view.frustum.CullSphere( centre, radius ))
 #define R_CullFrustum( otherFrustum )		( RI->view.frustum.CullFrustum( otherFrustum ))
 
@@ -841,16 +841,16 @@ void GL_FreeDrawbuffer(gl_drawbuffer_t *fbo);
 // gl_lightmap.cpp
 //
 void R_UpdateSurfaceParams( msurface_t *surf );
-void R_UpdateSurfaceParams( struct mstudiosurface_s *surf );
+void R_UpdateSurfaceParams( struct mstudiosurface_t *surf );
 void GL_BeginBuildingLightmaps( void );
 void GL_AllocLightmapForFace( msurface_t *surf );
-bool GL_AllocLightmapForFace( struct mstudiosurface_s *surf );
+bool GL_AllocLightmapForFace( struct mstudiosurface_t *surf );
 void GL_EndBuildingLightmaps( bool lightmap, bool deluxmap );
 void R_TextureCoords( msurface_t *surf, const Vector &vec, float *out );
 void R_GlobalCoords( msurface_t *surf, const Vector &point, float *out );
 void R_GlobalCoords( msurface_t *surf, const Vector &point, const Vector &absmin, const Vector &absmax, float scale, float *out );
 void R_LightmapCoords( msurface_t *surf, const Vector &vec, float *coords, int style );
-void R_LightmapCoords( struct mstudiosurface_s *surf, const Vector &vec, const Vector lmvecs[2], float *coords, int style );
+void R_LightmapCoords( struct mstudiosurface_t *surf, const Vector &vec, const Vector lmvecs[2], float *coords, int style );
 
 //
 // gl_dlight.cpp

@@ -110,9 +110,58 @@ int CStudioModelRenderer :: StudioGetBounds( CSolidEntry *entry, Vector bounds[2
 		return 0;
 
 	ModelInstance_t *inst = &m_ModelInstances[entry->m_pParentEntity->modelhandle];
-	TransformAABB( inst->m_pbones[vbo->parentbone], vbo->mins, vbo->maxs, bounds[0], bounds[1] );
-
+	CBoundingBox meshBounds = StudioGetMeshBounds(inst, vbo);
+	bounds[0] = meshBounds.GetMins();
+	bounds[1] = meshBounds.GetMaxs();
 	return 1;
+}
+
+int CStudioModelRenderer::StudioGetBounds( CSolidEntry *entry, CBoundingBox &bounds )
+{
+	if( !entry || entry->m_bDrawType != DRAWTYPE_MESH )
+		return 0;
+
+	if( !entry->m_pParentEntity || entry->m_pParentEntity->modelhandle == INVALID_HANDLE )
+		return 0;
+
+	vbomesh_t *vbo = entry->m_pMesh;
+
+	if( !vbo || vbo->parentbone == 0xFF )
+		return 0;
+
+	ModelInstance_t *inst = &m_ModelInstances[entry->m_pParentEntity->modelhandle];
+	CBoundingBox meshBounds = StudioGetMeshBounds(inst, vbo);
+	bounds = meshBounds;
+	return 1;
+}
+
+/*
+================
+StudioGetBounds
+
+Get world-space bounds for a given mesh, accounting all contained bones
+================
+*/
+CBoundingBox CStudioModelRenderer::StudioGetMeshBounds(ModelInstance_t *inst, const vbomesh_t *mesh)
+{
+	Vector mins, maxs;
+	bool boneWeighting = inst->m_pModel->poseToBone != nullptr;
+	const mposetobone_t	*m = inst->m_pModel->poseToBone;
+
+	ClearBounds(mins, maxs);
+	for (const auto &[boneIndex, bound] : mesh->boneBounds) 
+	{
+		vec3_t worldSpaceMins, worldSpaceMaxs;
+		matrix3x4 out = inst->m_pbones[boneIndex];
+		if (boneWeighting) {
+			out.ConcatTransforms(m->posetobone[boneIndex]);
+		}
+		TransformAABB(out, bound.GetMins(), bound.GetMaxs(), worldSpaceMins, worldSpaceMaxs);
+		AddPointToBounds(worldSpaceMins, mins, maxs);
+		AddPointToBounds(worldSpaceMaxs, mins, maxs);
+	}
+	ExpandBounds(mins, maxs, 0.5f); // create sentinel border for refractions
+	return CBoundingBox(mins, maxs);
 }
 
 /*
@@ -1661,7 +1710,7 @@ void CStudioModelRenderer :: CacheSurfaceLight( cl_entity_t *ent )
 		{
 			if( m_pModelInstance->m_FlCache && m_pModelInstance->m_FlCache->update_light )
 			{
-				for( int j = 0; j < m_pModelInstance->m_FlCache->numsurfaces; j++ )
+				for( int j = 0; j < m_pModelInstance->m_FlCache->surfaces.size(); j++ )
 				{
 					mstudiosurface_t *surf = &m_pModelInstance->m_FlCache->surfaces[j];
 					R_UpdateSurfaceParams( surf );
@@ -2030,14 +2079,18 @@ void CStudioModelRenderer :: StudioDrawAttachments( bool bCustomFov )
 
 void CStudioModelRenderer::StudioDrawBodyPartsBBox()
 {
-	mbodypart_s* bodyparts;
+	mbodypart_t *bodyparts;
+
+	// looks ugly, skip
+	if( RI->currententity == GET_VIEWMODEL( ))
+		return;
 
 	if (m_pModelInstance->m_FlCache != NULL)
-		bodyparts = m_pModelInstance->m_FlCache->bodyparts;
+		bodyparts = &m_pModelInstance->m_FlCache->bodyparts.front();
 	else if (m_pModelInstance->m_VlCache != NULL)
-		bodyparts = m_pModelInstance->m_VlCache->bodyparts;
+		bodyparts = &m_pModelInstance->m_VlCache->bodyparts.front();
 	else
-		bodyparts = RI->currentmodel->studiocache->bodyparts;
+		bodyparts = &RI->currentmodel->studiocache->bodyparts.front();
 
 	if (!bodyparts) {
 		HOST_ERROR("%s missed cache\n", RI->currententity->model->name);
@@ -2048,24 +2101,24 @@ void CStudioModelRenderer::StudioDrawBodyPartsBBox()
 	{
 		mbodypart_t* pBodyPart = &bodyparts[i];
 		int index = RI->currententity->curstate.body / pBodyPart->base;
-		index = index % pBodyPart->nummodels;
+		index = index % pBodyPart->models.size();
 
 		msubmodel_t* pSubModel = pBodyPart->models[index];
 		if (!pSubModel) 
 			continue; // blank submodel, just ignore
 
-		for (int j = 0; j < pSubModel->nummesh; j++)
+		for (int j = 0; j < pSubModel->meshes.size(); j++)
 		{
 			Vector p[8];
 			vbomesh_t *mesh = &pSubModel->meshes[j];
-			
+
 			// compute a full bounding box
+			CBoundingBox meshBounds = StudioGetMeshBounds(m_pModelInstance, mesh);
 			for (int k = 0; k < 8; k++)
 			{
-				p[k].x = (k & 1) ? mesh->mins.x : mesh->maxs.x;
-				p[k].y = (k & 2) ? mesh->mins.y : mesh->maxs.y;
-				p[k].z = (k & 4) ? mesh->mins.z : mesh->maxs.z;
-				p[k] = m_pModelInstance->m_pbones[mesh->parentbone].VectorTransform(p[k]);
+				p[k].x = (k & 1) ? meshBounds.GetMins().x : meshBounds.GetMaxs().x;
+				p[k].y = (k & 2) ? meshBounds.GetMins().y : meshBounds.GetMaxs().y;
+				p[k].z = (k & 4) ? meshBounds.GetMins().z : meshBounds.GetMaxs().z;
 			}
 
 			GL_Bind(GL_TEXTURE0, tr.whiteTexture);
@@ -2230,14 +2283,12 @@ void CStudioModelRenderer :: AddMeshToDrawList( studiohdr_t *phdr, vbomesh_t *me
 	// static entities allows to cull each part individually
 	if( FBitSet( RI->currententity->curstate.iuser1, CF_STATIC_ENTITY ) )
 	{
-		Vector	absmin, absmax;
+		CBoundingBox meshBounds = StudioGetMeshBounds(m_pModelInstance, mesh);
 
-		TransformAABB( m_pModelInstance->m_pbones[mesh->parentbone], mesh->mins, mesh->maxs, absmin, absmax );
-
-		if( !Mod_CheckBoxVisible( absmin, absmax ))
+		if( !Mod_CheckBoxVisible( meshBounds.GetMins(), meshBounds.GetMaxs() ))
 			return; // occulded
 
-		if( R_CullBox( absmin, absmax ))
+		if( R_CullBox( meshBounds.GetMins(), meshBounds.GetMaxs() ))
 			return; // culled
 	}
 
@@ -2317,14 +2368,12 @@ void CStudioModelRenderer :: AddMeshToDrawList( studiohdr_t *phdr, vbomesh_t *me
 		entry.SetRenderMesh(mesh, hProgram);
 		if (mesh->parentbone != 0xFF)
 		{
-			Vector mins, maxs;
-			TransformAABB(m_pModelInstance->m_pbones[mesh->parentbone], mesh->mins, mesh->maxs, mins, maxs);
-			ExpandBounds(mins, maxs, 0.5f); // create sentinel border for refractions
+			CBoundingBox meshBounds = StudioGetMeshBounds(m_pModelInstance, mesh);
 			if (ScreenCopyRequired(shader)) {
-				entry.ComputeScissor(mins, maxs);
+				entry.ComputeScissor(meshBounds.GetMins(), meshBounds.GetMaxs());
 			}
 			else {
-				entry.ComputeViewDistance(mins, maxs);
+				entry.ComputeViewDistance(meshBounds.GetMins(), meshBounds.GetMaxs());
 			}
 		}
 		RI->frame.trans_list.AddToTail(entry);
@@ -2337,20 +2386,20 @@ AddBodyPartToDrawList
 
 ====================
 */
-void CStudioModelRenderer :: AddBodyPartToDrawList( studiohdr_t *phdr, mbodypart_s *bodyparts, int bodypart, bool lightpass )
+void CStudioModelRenderer :: AddBodyPartToDrawList( studiohdr_t *phdr, mbodypart_t *bodyparts, int bodypart, bool lightpass )
 {
-	if( !bodyparts ) bodyparts = RI->currentmodel->studiocache->bodyparts;
+	if( !bodyparts ) bodyparts = &RI->currentmodel->studiocache->bodyparts.front();
 	if( !bodyparts ) HOST_ERROR( "%s missed cache\n", RI->currententity->model->name );
 
 	bodypart = bound( 0, bodypart, phdr->numbodyparts );
 	mbodypart_t *pBodyPart = &bodyparts[bodypart];
 	int index = RI->currententity->curstate.body / pBodyPart->base;
-	index = index % pBodyPart->nummodels;
+	index = index % pBodyPart->models.size();
 
 	msubmodel_t *pSubModel = pBodyPart->models[index];
 	if( !pSubModel ) return; // blank submodel, just ignore
 
-	for( int i = 0; i < pSubModel->nummesh; i++ )
+	for( int i = 0; i < pSubModel->meshes.size(); i++ )
 		AddMeshToDrawList( phdr, &pSubModel->meshes[i], lightpass );
 }
 
@@ -2506,9 +2555,9 @@ void CStudioModelRenderer :: AddStudioModelToDrawList( cl_entity_t *e, bool upda
 
 	// change shared model with instanced model for this entity (it has personal vertex light cache)
 	if( m_pModelInstance->m_FlCache != NULL )
-		pbodyparts = m_pModelInstance->m_FlCache->bodyparts;
+		pbodyparts = &m_pModelInstance->m_FlCache->bodyparts.front();
 	else if( m_pModelInstance->m_VlCache != NULL )
-		pbodyparts = m_pModelInstance->m_VlCache->bodyparts;
+		pbodyparts = &m_pModelInstance->m_VlCache->bodyparts.front();
 
 	for( int i = 0 ; i < m_pStudioHeader->numbodyparts; i++ )
 		AddBodyPartToDrawList( m_pStudioHeader, pbodyparts, i, ( RI->currentlight != NULL ));
@@ -2728,7 +2777,7 @@ void CStudioModelRenderer :: BuildMeshListForLight( CDynLight *pl, bool solid )
 			CSolidEntry *entry = &RI->frame.solid_meshes[i];
 			StudioGetBounds( entry, bounds );
 
-			if( pl->frustum.CullBox( bounds[0], bounds[1] ))
+			if( pl->frustum.CullBoxFast( bounds[0], bounds[1] ))
 				continue;	// no interaction
 
 			// setup the global pointers
@@ -2752,7 +2801,7 @@ void CStudioModelRenderer :: BuildMeshListForLight( CDynLight *pl, bool solid )
 				continue;
 
 			StudioGetBounds( entry, bounds );
-			if( pl->frustum.CullBox( bounds[0], bounds[1] ))
+			if( pl->frustum.CullBoxFast( bounds[0], bounds[1] ))
 				continue;	// no interaction
 
 			// setup the global pointers
@@ -4038,10 +4087,10 @@ void CStudioModelRenderer :: ClearLightCache( void )
 	{
 		mstudiocache_t *cache = tr.surface_light_cache[i];
 
-		if (!cache || cache->numsurfaces <= 0)
+		if (!cache || cache->surfaces.empty())
 			continue;
 
-		for (int j = 0; j < cache->numsurfaces; j++)
+		for (int j = 0; j < cache->surfaces.size(); j++)
 		{
 			mstudiosurface_t *surf = &cache->surfaces[j];
 			SetBits(surf->flags, SURF_LM_UPDATE | SURF_GRASS_UPDATE);

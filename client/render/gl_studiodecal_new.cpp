@@ -120,7 +120,6 @@ void CStudioModelRenderer :: PurgeDecals( ModelInstance_t *inst )
 	for( int i = 0; i < inst->m_DecalList.Count(); i++ )
 	{
 		studiodecal_t *pDecal = &inst->m_DecalList[i];
-		DeleteVBOMesh( &pDecal->mesh );
 	}
 
 	// release himself
@@ -1032,8 +1031,6 @@ void CStudioModelRenderer :: AllocDecalForMesh( DecalBuildInfo_t& build )
 	int index = m_pModelInstance->m_DecalList.AddToTail();
 	studiodecal_t *pDecal = &m_pModelInstance->m_DecalList[index];
 
-	memset( pDecal, 0, sizeof( studiodecal_t ));
-
 	// copy settings
 	pDecal->normal = build.vecLocalNormal;
 	pDecal->position = build.vecLocalEnd;
@@ -1062,12 +1059,9 @@ void CStudioModelRenderer :: AllocDecalForMesh( DecalBuildInfo_t& build )
 void CStudioModelRenderer :: AddDecalToMesh( DecalBuildInfo_t& build )
 {
 	const vbomesh_t *mesh = build.m_pModelMesh;
-	Vector absmin, absmax;
-
-	// setup mesh bounds
-	TransformAABB( m_pModelInstance->m_pbones[mesh->parentbone], mesh->mins, mesh->maxs, absmin, absmax );
-
-	if( !BoundsAndSphereIntersect( absmin, absmax, build.vecLocalEnd, build.m_Radius ))
+	CBoundingBox meshBounds = StudioGetMeshBounds(m_pModelInstance, mesh);
+	
+	if( !BoundsAndSphereIntersect( meshBounds.GetMins(), meshBounds.GetMaxs(), build.vecLocalEnd, build.m_Radius))
 		return; // no intersection
 
 	build.m_Vertices.Purge();
@@ -1456,8 +1450,6 @@ check_decals:
 
 			if( pDecal->depth == depth )
 			{
-				DeleteVBOMesh( &pDecal->mesh );
-				memset( pDecal, 0 , sizeof( *pDecal ));
 				m_pModelInstance->m_DecalList.Remove( i );
 				goto check_decals;
 			}

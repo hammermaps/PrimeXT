@@ -100,6 +100,16 @@ void CBaseBoneSetup :: debugLine( const Vector& origin, const Vector& dest, int 
 	pglEnd();
 }
 
+vbomesh_t::~vbomesh_t()
+{
+	// purge all GPU data
+	if( vao ) pglDeleteVertexArrays( 1, &vao );
+	if( vbo ) pglDeleteBuffersARB( 1, &vbo );
+	if( ibo ) pglDeleteBuffersARB( 1, &ibo );
+	tr.total_vbo_memory -= cacheSize;
+	cacheSize = 0;
+}
+
 /*
 ====================
 Init
@@ -305,46 +315,18 @@ bool CStudioModelRenderer :: IsModelInstanceValid( ModelInstance_t *inst )
 	return inst->m_pModel == pModel;
 }
 
-void CStudioModelRenderer :: DeleteVBOMesh( vbomesh_t *pMesh )
-{
-	// purge all GPU data
-	if( pMesh->vao ) pglDeleteVertexArrays( 1, &pMesh->vao );
-	if( pMesh->vbo ) pglDeleteBuffersARB( 1, &pMesh->vbo );
-	if( pMesh->ibo ) pglDeleteBuffersARB( 1, &pMesh->ibo );
-	tr.total_vbo_memory -= pMesh->cacheSize;
-	pMesh->cacheSize = 0;
-}
-
 void CStudioModelRenderer :: DeleteStudioCache( mstudiocache_t **ppstudiocache )
 {
-	ASSERT( ppstudiocache != NULL );
+	ASSERT(ppstudiocache != nullptr);
 
 	mstudiocache_t *pstudiocache = *ppstudiocache;
-	if( !pstudiocache ) return;
+	if (!pstudiocache)
+		return;
 
-	for( int i = 0; i < pstudiocache->numbodyparts; i++ )
-	{
-		mbodypart_t *pBodyPart = &pstudiocache->bodyparts[i];
-
-		for( int j = 0; j < pBodyPart->nummodels; j++ )
-		{
-			msubmodel_t *pSubModel = pBodyPart->models[j];
-
-			if( !pSubModel || pSubModel->nummesh <= 0 )
-				continue; // blank submodel
-
-			for( int k = 0; k < pSubModel->nummesh; k++ )
-			{
-				vbomesh_t *pMesh = &pSubModel->meshes[k];
-
-				DeleteVBOMesh( pMesh );
-			}
-		}
+	if (pstudiocache) {
+		delete pstudiocache;
 	}
-
-	if( pstudiocache != NULL )
-		Mem_Free( pstudiocache );
-	*ppstudiocache = NULL;
+	*ppstudiocache = nullptr;
 }
 
 void CStudioModelRenderer :: DestroyMeshCache( void )
@@ -1101,7 +1083,7 @@ void CStudioModelRenderer :: AllocLightmapsForMesh( StudioMesh_t *pCurMesh, cons
 	bool	lightmap_restarted = false;
 
 	// should have the surface cache to store lightmap results
-	if( !m_pStudioCache || !m_pStudioCache->surfaces )
+	if( !m_pStudioCache || m_pStudioCache->surfaces.empty() )
 		return;
 
 	if( !dfl || dfl->numfaces <= 0 )
@@ -1592,37 +1574,46 @@ void CStudioModelRenderer :: MeshCreateBuffer( vbomesh_t *pOut, const mstudiomes
 	bool 		has_boneweights = FBitSet(m_pStudioHeader->flags, STUDIO_HAS_BONEWEIGHTS) != 0;
 	bool		has_vertexlight = ( lightmode == LIGHTSTATIC_VERTEX ) ? true : false;
 	bool		has_lightmap = ( lightmode == LIGHTSTATIC_SURFACE ) ? true : false;
+	const mposetobone_t	*m = RI->currentmodel->poseToBone;
 	static uint	arrayelems[MAXARRAYVERTS*3];
-	Vector		mins, maxs;
 
 	pOut->skinref = pMesh->skinref;
 	pOut->parentbone = 0xFF;
-
-	ClearBounds( mins, maxs );
 
 	// we need to compute some things individually per mesh
 	for (int i = 0; i < pMeshInfo->numvertices; i++)
 	{
 		svert_t	*vert = &m_arrayxvert[pMeshInfo->firstvertex + i];
-
-		AddPointToBounds( vert->vertex, mins, maxs );
-
 		int boneid = vert->boneid[0];
 
-		if( pOut->parentbone == 0xFF )
+		if (pOut->parentbone == 0xFF)
 			pOut->parentbone = boneid;
 
 		// update bone if it was parent of current bone
-		if( pOut->parentbone != boneid )
+		if (pOut->parentbone != boneid)
 		{
-			for( int k = pOut->parentbone; k != -1; k = pbones[k].parent )
+			for (int j = pOut->parentbone; j != -1; j = pbones[j].parent)
 			{
-				if( k == boneid )
+				if (j == boneid)
 				{
 					pOut->parentbone = boneid;
 					break;
 				}
 			}
+		}
+
+		for (int j = 0; j < 4; j++) 
+		{
+			int32_t boneIndex = vert->boneid[j];
+			if (boneIndex < 0) {
+				continue;
+			}
+
+			vec3_t tempVert = vert->vertex;
+			if (has_boneweights) {
+				tempVert = m->posetobone[boneIndex].VectorTransform(tempVert);
+			}
+			pOut->boneBounds[boneIndex].ExpandToPoint(tempVert);
 		}
 	}
 
@@ -1630,8 +1621,6 @@ void CStudioModelRenderer :: MeshCreateBuffer( vbomesh_t *pOut, const mstudiomes
 	for (int i = 0; i < pMeshInfo->numindices; i++)
 		arrayelems[i] = m_arrayelems[pMeshInfo->firstindex + i] - pMeshInfo->firstvertex;
 
-	pOut->mins = mins;
-	pOut->maxs = maxs;
 	pOut->lightmapnum = pMeshInfo->lightmapnum;
 	pOut->numVerts = pMeshInfo->numvertices;
 	pOut->numElems = pMeshInfo->numindices;
@@ -1673,9 +1662,7 @@ mstudiocache_t *CStudioModelRenderer :: CreateStudioCache( void *srclight, int l
 	static matrix3x4	bones[MAXSTUDIOBONES];
 	static Vector	pos[MAXSTUDIOBONES];
 	static Vector4D	q[MAXSTUDIOBONES];
-	int		i, j, k, bufSize = 0;
 	int		num_submodels = 0;
-	byte		*buffer, *bufend;		// simple bounds check
 	dmodelvertlight_t	*dvl = NULL;
 	dmodelfacelight_t	*dfl = NULL;
 	mstudiocache_t	*studiocache;
@@ -1715,7 +1702,7 @@ mstudiocache_t *CStudioModelRenderer :: CreateStudioCache( void *srclight, int l
 		// alloc storage for bone array
 		RI->currentmodel->poseToBone = (mposetobone_t *)Mem_Alloc( sizeof( mposetobone_t ));
 
-		for( j = 0; j < m_pStudioHeader->numbones; j++ )
+		for( int j = 0; j < m_pStudioHeader->numbones; j++ )
 			LoadLocalMatrix( j, &boneinfo[j] );
 	}
 
@@ -1731,7 +1718,7 @@ mstudiocache_t *CStudioModelRenderer :: CreateStudioCache( void *srclight, int l
 		m_boneSetup.InitPose( pos, q );
 	}
 
-	for( i = 0; i < m_pStudioHeader->numbones; i++ ) 
+	for( int i = 0; i < m_pStudioHeader->numbones; i++ ) 
 	{
 		// initialize bonematrix
 		matrix3x4 bonematrix = matrix3x4( pos[i], q[i] );
@@ -1743,7 +1730,7 @@ mstudiocache_t *CStudioModelRenderer :: CreateStudioCache( void *srclight, int l
 	if (has_boneweights)
 	{
 		// convert bones into worldtransform
-		for( i = 0; i < m_pStudioHeader->numbones; i++ )
+		for( int i = 0; i < m_pStudioHeader->numbones; i++ )
 			bones[i] = bones[i].ConcatTransforms( RI->currentmodel->poseToBone->posetobone[i] );
 	}
 
@@ -1753,11 +1740,11 @@ mstudiocache_t *CStudioModelRenderer :: CreateStudioCache( void *srclight, int l
 	num_submodels = 0;
 
 	// build list of unique submodels (by name)
-	for( i = 0; i < m_pStudioHeader->numbodyparts; i++ )
+	for( int i = 0; i < m_pStudioHeader->numbodyparts; i++ )
 	{
 		pbodypart = (mstudiobodyparts_t *)((byte *)m_pStudioHeader + m_pStudioHeader->bodypartindex) + i;
 
-		for( j = 0; j < pbodypart->nummodels; j++ )
+		for( int k, j = 0; j < pbodypart->nummodels; j++ )
 		{
 			psubmodel = (mstudiomodel_t *)((byte *)m_pStudioHeader + pbodypart->modelindex) + j;
 			if( !psubmodel->nummesh ) continue; // blank submodel, ignore it
@@ -1788,7 +1775,7 @@ mstudiocache_t *CStudioModelRenderer :: CreateStudioCache( void *srclight, int l
 			int	max_model_verts = 0;
 
 			// multiplier 8 is a good enough to predict max vertices count
-			for( i = 0; i < num_submodels; i++ )
+			for( int i = 0; i < num_submodels; i++ )
 				max_model_verts += submodel[i].pmodel->numverts * 8;
 
 			// reserve space for all the model verts
@@ -1798,7 +1785,7 @@ mstudiocache_t *CStudioModelRenderer :: CreateStudioCache( void *srclight, int l
 			m_tbnverts->modelCRC = RI->currentmodel->modelCRC;
 
 			// store submodel offsets here
-			for( i = 0; i < num_submodels; i++ )
+			for( int i = 0; i < num_submodels; i++ )
 			{
 				psubmodel = submodel[i].pmodel;
 				m_tbnverts->submodels[i].submodel_offset = (byte *)psubmodel - (byte *)m_pStudioHeader;
@@ -1810,45 +1797,23 @@ mstudiocache_t *CStudioModelRenderer :: CreateStudioCache( void *srclight, int l
 			ALERT( at_warning, "%s: generate TBN due loading light cache\n", RI->currentmodel->name ); 
 	}
 
-	// compute cache size (include individual meshes)
-	bufSize = sizeof( mstudiocache_t ) + sizeof( mbodypart_t ) * m_pStudioHeader->numbodyparts;
-
-	for( i = 0; i < num_submodels; i++ )
-		bufSize += sizeof( msubmodel_t ) + sizeof( vbomesh_t ) * submodel[i].pmodel->nummesh;
-
-	if( dfl != NULL && dfl->numfaces > 0 )
-		bufSize += sizeof( mstudiosurface_t ) * dfl->numfaces;
-
-	buffer = (byte *)Mem_Alloc( bufSize );
-	bufend = buffer + bufSize;
-
 	// setup pointers
-	studiocache = (mstudiocache_t *)buffer;
-	buffer += sizeof( mstudiocache_t );
+	studiocache = new mstudiocache_t();
 	m_pStudioCache = studiocache;
 
-	if( dfl != NULL && dfl->numfaces > 0 )
-	{
-		studiocache->surfaces = (mstudiosurface_t *)buffer;
-		studiocache->numsurfaces = dfl->numfaces;
-		buffer += sizeof( mstudiosurface_t ) * dfl->numfaces;
+	if( dfl != NULL && dfl->numfaces > 0 ) {
+		studiocache->surfaces.resize(dfl->numfaces);
 	}
 
-	studiocache->bodyparts = (mbodypart_t *)buffer;
-	buffer += sizeof( mbodypart_t ) * m_pStudioHeader->numbodyparts;
-	studiocache->numbodyparts = m_pStudioHeader->numbodyparts;
+	studiocache->bodyparts.resize(m_pStudioHeader->numbodyparts);
+	studiocache->submodels.resize(num_submodels);
 
 	// begin to building submodels
-	for( i = 0; i < num_submodels; i++ )
+	for( int j, i = 0; i < num_submodels; i++ )
 	{
 		psubmodel = submodel[i].pmodel;
-		pModel = (msubmodel_t *)buffer;
-		buffer += sizeof( msubmodel_t );
-		pModel->nummesh = psubmodel->nummesh;
-
-		// setup meshes
-		pModel->meshes = (vbomesh_t *)buffer;
-		buffer += sizeof( vbomesh_t ) * psubmodel->nummesh;
+		pModel = &studiocache->submodels[i];
+		pModel->meshes.resize(psubmodel->nummesh);
 
 		// sanity check for vertexlighting
 		if( dvl != NULL && dvl->numverts > 0 )
@@ -1901,7 +1866,7 @@ mstudiocache_t *CStudioModelRenderer :: CreateStudioCache( void *srclight, int l
 		// setup all the vertices for a given submodel
 		SetupSubmodelVerts( psubmodel, bones, srclight, lightmode );
 
-		for( j = 0; j < psubmodel->nummesh; j++ )
+		for( int j = 0; j < psubmodel->nummesh; j++ )
 		{
 			mstudiomesh_t *pSrc = (mstudiomesh_t *)((byte *)m_pStudioHeader + psubmodel->meshindex) + j;
 			vbomesh_t *pDst = &pModel->meshes[j];
@@ -1913,16 +1878,16 @@ mstudiocache_t *CStudioModelRenderer :: CreateStudioCache( void *srclight, int l
 	}
 
 	// and finally setup bodyparts
-	for( i = 0; i < m_pStudioHeader->numbodyparts; i++ )
+	for( int i = 0; i < m_pStudioHeader->numbodyparts; i++ )
 	{
 		pbodypart = (mstudiobodyparts_t *)((byte *)m_pStudioHeader + m_pStudioHeader->bodypartindex) + i;
 		mbodypart_t *pBodyPart = &studiocache->bodyparts[i];
 
 		pBodyPart->base = pbodypart->base;
-		pBodyPart->nummodels = pbodypart->nummodels;
+		pBodyPart->models.resize(pbodypart->nummodels);
 
 		// setup pointers to unique models	
-		for( j = 0; j < pBodyPart->nummodels; j++ )
+		for( int k, j = 0; j < pbodypart->nummodels; j++ )
 		{
 			psubmodel = (mstudiomodel_t *)((byte *)m_pStudioHeader + pbodypart->modelindex) + j;
 			if( !psubmodel->nummesh ) continue; // blank submodel, leave null pointer
@@ -1965,14 +1930,6 @@ mstudiocache_t *CStudioModelRenderer :: CreateStudioCache( void *srclight, int l
 
 	// invalidate
 	m_pStudioCache = NULL;
-
-	// bounds checking
-	if( buffer != bufend )
-	{
-		if( buffer > bufend )
-			ALERT( at_error, "CreateStudioCache: memory buffer overrun\n" );
-		else ALERT( at_error, "CreateStudioCache: memory buffer underrun\n" );
-	}
 
 	return studiocache;
 }
