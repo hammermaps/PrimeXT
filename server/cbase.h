@@ -54,6 +54,7 @@ CBaseEntity
 #define MF_LADDER			BIT( 3 )		// ladders is sended to client for predict reasons
 #define MF_TEMP_PARENT		BIT( 4 )		// temporare parent on teleport
 
+#pragma once
 #include "saverestore.h"
 #include "schedule.h"
 
@@ -153,6 +154,9 @@ public:
 	entvars_t		*pev;		// Don't need to save/restore this pointer, the engine resets it
 
 	DECLARE_DATADESC();
+
+	// Always keep this virtual destructor, so derived classes can be properly destructed
+	virtual ~CBaseEntity() {}
 
 	// path corners
 	CBaseEntity	*m_pGoalEnt;	// path corner we are heading towards

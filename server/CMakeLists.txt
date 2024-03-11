@@ -5,8 +5,54 @@ include(CheckIncludeFile)
 include(CompilerRuntime)
 check_include_file("tgmath.h" HAVE_TGMATH_H)
 
-# add source files
-set(SVDLL_SOURCES
+list(APPEND SVDLL_SOURCES
+	"animating.cpp"
+	"animation.cpp"
+	"cbase.cpp"
+	"client.cpp"
+	"combat.cpp"
+	"defaultai.cpp"
+	"ggrenade.cpp"
+	"base_tank.cpp"
+	"dll_int.cpp"
+	"effects.cpp"
+	"ehandle.cpp"
+	"game.cpp"
+	"globals.cpp"
+	"h_ai.cpp"
+	"items.cpp"
+	"lights.cpp"
+	"mapents.cpp"
+	"maprules.cpp"
+	"monsters.cpp"
+	"monsterstate.cpp"
+	"nodes.cpp"
+	"physic.cpp"
+	"plats.cpp"
+	"player.cpp"
+	"ropes/CElectrifiedWire.cpp"
+	"ropes/CRope.cpp"
+	"ropes/CRopeSegment.cpp"
+	"schedule.cpp"
+	"scripted.cpp"
+	"saverestore.cpp"
+	"skill.cpp"
+	"sound.cpp"
+	"soundent.cpp"
+	"spectator.cpp"
+	"stats.cpp"
+	"strings.cpp"
+	"subs.cpp"
+	"sv_materials.cpp"
+	"triggers.cpp"
+	"user_messages.cpp"
+	"util.cpp"
+	"weapons.cpp"
+	"world.cpp"
+)
+
+# shared source files
+list(APPEND SVDLL_SOURCES
 	"${CMAKE_SOURCE_DIR}/game_shared/bone_setup.cpp"
 	"${CMAKE_SOURCE_DIR}/game_shared/common.cpp"
 	"${CMAKE_SOURCE_DIR}/game_shared/ikcontext.cpp"
@@ -26,119 +72,6 @@ set(SVDLL_SOURCES
 	"${CMAKE_SOURCE_DIR}/public/crclib.cpp"
 )
 
-list(APPEND SVDLL_SOURCES
-	"monsters/aflock.cpp"
-	"monsters/agrunt.cpp"
-	"airtank.cpp"
-	"monsters/animating.cpp"
-	"monsters/animation.cpp"
-	"monsters/apache.cpp"
-	"monsters/barnacle.cpp"
-	"monsters/barney.cpp"
-	"monsters/bigmomma.cpp"
-	"monsters/bloater.cpp"
-	"bmodels.cpp"
-	"monsters/bullsquid.cpp"
-	"buttons.cpp"
-	"user_messages.cpp"
-	"cbase.cpp"
-	"ropes/CElectrifiedWire.cpp"
-	"client.cpp"
-	"combat.cpp"
-	"monsters/controller.cpp"
-	"ropes/CRope.cpp"
-	"ropes/CRopeSegment.cpp"
-	"crossbow.cpp"
-	"crowbar.cpp"
-	"monsters/defaultai.cpp"
-	"dll_int.cpp"
-	"doors.cpp"
-	"effects.cpp"
-	"egon.cpp"
-	"ehandle.cpp"
-	"explode.cpp"
-	"monsters/flyingmonster.cpp"
-	"func_break.cpp"
-	"func_monitor.cpp"
-	"func_tank.cpp"
-	"game.cpp"
-	"gamerules.cpp"
-	"monsters/gargantua.cpp"
-	"gauss.cpp"
-	"monsters/genericmonster.cpp"
-	"ggrenade.cpp"
-	"globals.cpp"
-	"glock.cpp"
-	"monsters/gman.cpp"
-	"monsters/h_ai.cpp"
-	"h_battery.cpp"
-	"h_cycler.cpp"
-	"handgrenade.cpp"
-	"monsters/hassassin.cpp"
-	"monsters/headcrab.cpp"
-	"healthkit.cpp"
-	"monsters/hgrunt.cpp"
-	"monsters/hornet.cpp"
-	"hornetgun.cpp"
-	"monsters/houndeye.cpp"
-	"monsters/ichthyosaur.cpp"
-	"monsters/islave.cpp"
-	"items.cpp"
-	"monsters/leech.cpp"
-	"lights.cpp"
-	"mapents.cpp"
-	"maprules.cpp"
-	"monsters/monstermaker.cpp"
-	"monsters/monsters.cpp"
-	"monsters/monsterstate.cpp"
-	"mortar.cpp"
-	"mp5.cpp"
-	"multiplay_gamerules.cpp"
-	"monsters/nihilanth.cpp"
-	"monsters/nodes.cpp"
-	"monsters/osprey.cpp"
-	"pathcorner.cpp"
-	"physents.cpp"
-	"physic.cpp"
-	"plats.cpp"
-	"player.cpp"
-	"monsters/playermonster.cpp"
-	"python.cpp"
-	"monsters/rat.cpp"
-	"monsters/roach.cpp"
-	"rpg.cpp"
-	"satchel.cpp"
-	"saverestore.cpp"
-	"monsters/schedule.cpp"
-	"monsters/scientist.cpp"
-	"monsters/scripted.cpp"
-	"shotgun.cpp"
-	"singleplay_gamerules.cpp"
-	"skill.cpp"
-	"sound.cpp"
-	"monsters/soundent.cpp"
-	"spectator.cpp"
-	"monsters/spritemonster.cpp"
-	"monsters/squadmonster.cpp"
-	"squeakgrenade.cpp"
-	"stats.cpp"
-	"strings.cpp"
-	"subs.cpp"
-	"sv_materials.cpp"
-	"monsters/talkmonster.cpp"
-	"teamplay_gamerules.cpp"
-	"monsters/tempmonster.cpp"
-	"monsters/tentacle.cpp"
-	"triggers.cpp"
-	"tripmine.cpp"
-	"monsters/turret.cpp"
-	"util.cpp"
-	"weapons.cpp"
-	"world.cpp"
-	"monsters/xen.cpp"
-	"monsters/zombie.cpp"
-)
-
 if(ENABLE_PHYSX)
 	include(FindPhysX)
 	list(APPEND SVDLL_SOURCES
@@ -154,17 +87,28 @@ if(ENABLE_PHYSX)
 	)
 endif()
 
+file(GLOB ENTITIES_SOURCES "entities/*.cpp")
+file(GLOB MONSTERS_SOURCES "monsters/*.cpp")
+file(GLOB WEAPONS_SOURCES "weapons/*.cpp")
+file(GLOB GAMERULES_SOURCES "gamerules/*.cpp")
+
 # add .def file to sources
 if(MSVC)
-	list(APPEND SVDLL_SOURCES
-		"server.def"
-	)
+	list(APPEND SVDLL_SOURCES "server.def")
 endif()
 
+list(APPEND SVDLL_SOURCES ${ENTITIES_SOURCES})
+list(APPEND SVDLL_SOURCES ${MONSTERS_SOURCES})
+list(APPEND SVDLL_SOURCES ${WEAPONS_SOURCES})
+list(APPEND SVDLL_SOURCES ${GAMERULES_SOURCES})
 add_library(${PROJECT_NAME} SHARED ${SVDLL_SOURCES})
+
 target_include_directories(${PROJECT_NAME} PRIVATE
 	"."
 	"monsters"
+	"weapons"
+	"entities"
+	"gamerules"
 	"wpn_shared"
 	"${CMAKE_SOURCE_DIR}/common"
 	"${CMAKE_SOURCE_DIR}/engine"
