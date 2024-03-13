@@ -50,7 +50,7 @@ void WeaponsResource :: LoadWeaponSprites( WEAPON *pWeapon )
 		iRes = 320;
 	else iRes = 640;
 
-	char sz[128];
+	char sz[256];
 
 	if ( !pWeapon ) return;
 
