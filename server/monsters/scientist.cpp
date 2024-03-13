@@ -831,6 +831,7 @@ Schedule_t *CScientist :: GetSchedule ( void )
 			{
 				m_hEnemy = NULL;
 				pEnemy = NULL;
+				m_fearTime = gpGlobals->time;
 			}
 		}
 
@@ -906,11 +907,32 @@ Schedule_t *CScientist :: GetSchedule ( void )
 	case MONSTERSTATE_COMBAT:
 		if ( HasConditions( bits_COND_NEW_ENEMY ) )
 			return slFear;					// Point and scream!
-		if ( HasConditions( bits_COND_SEE_ENEMY ) )
+		if ( HasConditions( bits_COND_SEE_ENEMY ) ) {
+			m_fearTime = gpGlobals->time;
 			return slScientistCover;		// Take Cover
-		
+		}
 		if ( HasConditions( bits_COND_HEAR_SOUND ) )
 			return slTakeCoverFromBestSound;	// Cower and panic from the scary sound!
+
+		if ( pEnemy )
+		{
+			if ( HasConditions( bits_COND_SEE_ENEMY ) )
+				m_fearTime = gpGlobals->time;
+			else if ( DisregardEnemy( pEnemy ) )		// After 15 seconds of being hidden, return to alert
+			{
+				m_hEnemy = NULL;
+				pEnemy = NULL;
+
+				m_fearTime = gpGlobals->time;
+
+				if ( IsFollowing() )
+				{
+					return slScientistStartle;	
+				}
+
+				return slScientistHide;			// Hide after disregard
+			}
+		}
 
 		return slScientistCover;			// Run & Cower
 		break;
@@ -957,6 +979,7 @@ MONSTERSTATE CScientist :: GetIdealState ( void )
 					// Strip enemy when going to alert
 					m_IdealMonsterState = MONSTERSTATE_ALERT;
 					m_hEnemy = NULL;
+					m_fearTime = gpGlobals->time;
 					return m_IdealMonsterState;
 				}
 				// Follow if only scared a little
