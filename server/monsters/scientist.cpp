@@ -337,12 +337,9 @@ void CScientist::DeclineFollowing( void )
 
 void CScientist :: Scream( void )
 {
-	if ( FOkToSpeak() )
-	{
-		Talk( 10 );
-		m_hTalkTarget = m_hEnemy;
-		PlaySentence( "SC_SCREAM", RANDOM_FLOAT(3, 6), VOL_NORM, ATTN_NORM );
-	}
+	Talk( 10 );
+	m_hTalkTarget = m_hEnemy;
+	PlaySentence( "SC_SCREAM", RANDOM_FLOAT(3, 6), VOL_NORM, ATTN_NORM );
 }
 
 
@@ -379,15 +376,13 @@ void CScientist :: StartTask( Task_t *pTask )
 		break;
 
 	case TASK_SAY_FEAR:
-		if ( FOkToSpeak() )
-		{
-			Talk( 2 );
-			m_hTalkTarget = m_hEnemy;
-			if ( m_hEnemy->IsPlayer() )
-				PlaySentence( "SC_PLFEAR", 5, VOL_NORM, ATTN_NORM );
-			else
-				PlaySentence( "SC_FEAR", 5, VOL_NORM, ATTN_NORM );
-		}
+		Talk( 2 );
+		m_hTalkTarget = m_hEnemy;
+		if ( m_hEnemy->IsPlayer() )
+			PlaySentence( "SC_PLFEAR", 5, VOL_NORM, ATTN_NORM );
+		else
+			PlaySentence( "SC_FEAR", 5, VOL_NORM, ATTN_NORM );
+
 		TaskComplete();
 		break;
 
@@ -431,9 +426,6 @@ void CScientist :: RunTask( Task_t *pTask )
 
 	case TASK_MOVE_TO_TARGET_RANGE_SCARED:
 		{
-			if ( RANDOM_LONG(0,63)< 8 )
-				Scream();
-
 			if ( m_hEnemy == NULL )
 			{
 				TaskFail();
