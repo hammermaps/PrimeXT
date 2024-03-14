@@ -414,6 +414,8 @@ BEGIN_DATADESC( CBasePlayerWeapon )
 	DEFINE_FIELD( m_iSecondaryAmmoType, FIELD_INTEGER ),
 	DEFINE_FIELD( m_iClip, FIELD_INTEGER ),
 	DEFINE_FIELD( m_iDefaultAmmo, FIELD_INTEGER ),
+	DEFINE_FIELD( m_flLastFireTime, FIELD_FLOAT ),
+	DEFINE_FIELD( m_flPrevPrimaryAttack, FIELD_FLOAT ),
 END_DATADESC()
 
 void CBasePlayerItem :: SetObjectCollisionBox( void )
