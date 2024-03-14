@@ -589,6 +589,37 @@ BOOL CanAttack( float attack_time, float curtime, BOOL isPredicted )
 	return ( attack_time <= curtime ) ? TRUE : FALSE;
 }
 
+//=========================================================================
+// GetNextAttackDelay - An accurate way of calcualting the next attack time.
+//=========================================================================
+float CBasePlayerWeapon::GetNextAttackDelay(float delay)
+{
+	if (m_flLastFireTime == 0 || m_flNextPrimaryAttack <= -1.1)
+	{
+		// At this point, we are assuming that the client has stopped firing
+		// and we are going to reset our book keeping variables.
+		m_flLastFireTime = gpGlobals->time;
+		m_flPrevPrimaryAttack = delay;
+	}
+	// calculate the time between this shot and the previous
+	float flTimeBetweenFires = gpGlobals->time - m_flLastFireTime;
+	float flCreep = 0.0f;
+	if (flTimeBetweenFires > 0)
+		flCreep = flTimeBetweenFires - m_flPrevPrimaryAttack; // postive or negative
+
+	// save the last fire time
+	m_flLastFireTime = gpGlobals->time;
+
+	float flNextAttack = gpGlobals->time + delay - flCreep;
+	// we need to remember what the m_flNextPrimaryAttack time is set to for each shot,
+	// store it as m_flPrevPrimaryAttack.
+	m_flPrevPrimaryAttack = flNextAttack - gpGlobals->time;
+	// 	char szMsg[256];
+	// 	snprintf( szMsg, sizeof(szMsg), "next attack time: %0.4f\n", gpGlobals->time + flNextAttack );
+	// 	OutputDebugString( szMsg );
+	return flNextAttack;
+}
+
 void CBasePlayerWeapon::ItemPostFrame( void )
 {
 	if ((m_fInReload) && ( m_pPlayer->m_flNextAttack <= gpGlobals->time ))

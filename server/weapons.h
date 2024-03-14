@@ -271,6 +271,7 @@ public:
 	virtual BOOL IsUseable( void );
 	BOOL DefaultDeploy( char *szViewModel, char *szWeaponModel, int iAnim, char *szAnimExt, int skiplocal = 0, int body = 0 );
 	int DefaultReload( int iClipSize, int iAnim, float fDelay, int body = 0 );
+	float GetNextAttackDelay(float delay);
 
 	virtual void ItemPostFrame( void );	// called each frame by the player PostThink
 	// called by CBasePlayerWeapons ItemPostFrame()
@@ -293,15 +294,19 @@ public:
 
 	float m_flPumpTime;
 	int	m_fInSpecialReload;			// Are we in the middle of a reload for the shotguns
-	float	m_flNextPrimaryAttack;		// soonest time ItemPostFrame will call PrimaryAttack
-	float	m_flNextSecondaryAttack;		// soonest time ItemPostFrame will call SecondaryAttack
-	float	m_flTimeWeaponIdle;			// soonest time ItemPostFrame will call WeaponIdle
+	float m_flNextPrimaryAttack;		// soonest time ItemPostFrame will call PrimaryAttack
+	float m_flNextSecondaryAttack;		// soonest time ItemPostFrame will call SecondaryAttack
+	float m_flTimeWeaponIdle;			// soonest time ItemPostFrame will call WeaponIdle
 	int	m_iPrimaryAmmoType;			// "primary" ammo index into players m_rgAmmo[]
 	int	m_iSecondaryAmmoType;		// "secondary" ammo index into players m_rgAmmo[]
 	int	m_iClip;				// number of shots left in the primary weapon clip, -1 it not used
 	int	m_iClientClip;			// the last version of m_iClip sent to hud dll
 	int	m_iClientWeaponState;		// the last version of the weapon state sent to hud dll (is current weapon, is on target)
 	int	m_fInReload;			// Are we in the middle of a reload;
+
+	// hle time creep vars
+	float m_flPrevPrimaryAttack;
+	float m_flLastFireTime;
 
 	int	m_iDefaultAmmo;// how much ammo you get when you pick up this weapon as placed by a level designer.
 
