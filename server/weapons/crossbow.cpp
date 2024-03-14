@@ -97,6 +97,7 @@ BOOL CCrossbow::Deploy( )
 {
 	if (m_iClip)
 		return DefaultDeploy( "models/v_crossbow.mdl", "models/p_crossbow.mdl", CROSSBOW_DRAW1, "bow" );
+
 	return DefaultDeploy( "models/v_crossbow.mdl", "models/p_crossbow.mdl", CROSSBOW_DRAW2, "bow" );
 }
 
@@ -110,7 +111,8 @@ void CCrossbow::Holster( void )
 		SecondaryAttack( );
 	}
 
-	m_pPlayer->m_flNextAttack = gpGlobals->time + 0.5;
+	m_pPlayer->m_flNextAttack = GetNextAttackDelay(0.5);
+
 	if (m_iClip)
 		SendWeaponAnim( CROSSBOW_HOLSTER1 );
 	else
@@ -131,7 +133,7 @@ void CCrossbow::PrimaryAttack( void )
 // this function only gets called in multiplayer
 void CCrossbow::FireSniperBolt()
 {
-	m_flNextPrimaryAttack = gpGlobals->time + 0.75;
+	m_flNextPrimaryAttack = GetNextAttackDelay(0.75);
 
 	if (m_iClip == 0)
 	{
@@ -281,9 +283,10 @@ void CCrossbow::FireBolt( void )
 		// HEV suit - indicate out of ammo condition
 		m_pPlayer->SetSuitUpdate("!HEV_AMO0", FALSE, 0);
 
-	m_flNextPrimaryAttack = gpGlobals->time + 0.75;
+	m_flNextPrimaryAttack = GetNextAttackDelay(0.75);
 
-	m_flNextSecondaryAttack = gpGlobals->time + 0.75;
+	m_flNextSecondaryAttack = GetNextAttackDelay(0.75);
+
 	if (m_iClip != 0)
 		m_flTimeWeaponIdle = gpGlobals->time + 5.0;
 	else
@@ -311,7 +314,7 @@ void CCrossbow::SecondaryAttack( void )
 		m_fInZoom = 1;
 	}
 	
-	m_flNextSecondaryAttack = gpGlobals->time + 0.3;
+	m_flNextSecondaryAttack = GetNextAttackDelay(0.3);
 	m_flTimeWeaponIdle = gpGlobals->time + 5.0;
 }
 
