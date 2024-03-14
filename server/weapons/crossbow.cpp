@@ -285,7 +285,7 @@ void CCrossbow::FireBolt( void )
 
 	m_flNextPrimaryAttack = GetNextAttackDelay(0.75);
 
-	m_flNextSecondaryAttack = GetNextAttackDelay(0.75);
+	m_flNextSecondaryAttack = gpGlobals->time + 0.75;
 
 	if (m_iClip != 0)
 		m_flTimeWeaponIdle = gpGlobals->time + 5.0;
@@ -314,12 +314,15 @@ void CCrossbow::SecondaryAttack( void )
 		m_fInZoom = 1;
 	}
 	
-	m_flNextSecondaryAttack = GetNextAttackDelay(0.3);
+	m_flNextSecondaryAttack = gpGlobals->time + 0.3;
 	m_flTimeWeaponIdle = gpGlobals->time + 5.0;
 }
 
 void CCrossbow::Reload( void )
 {
+	if (m_pPlayer->m_rgAmmo[m_iPrimaryAmmoType] <= 0)
+		return;
+
 	if ( m_fInZoom )
 	{
 		m_fZoomInUse = 0;
